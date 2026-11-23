@@ -29,6 +29,10 @@ import (
 func main() {
 	fmt.Println("Starting the application...")
 
+	if err := initConfig(); err != nil {
+		log.Fatalf("Error reading config file: %v", err)
+	}
+
 	cfg := configs.LoadConfig()
 	if cfg == nil {
 		log.Fatal("failed to load config")
@@ -98,7 +102,7 @@ func main() {
 }
 
 func initConfig() error {
-	viper.AddConfigPath("configs")
+	viper.AddConfigPath("internal/app/config")
 	viper.SetConfigName("config")
 	return viper.ReadInConfig()
 }

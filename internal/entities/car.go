@@ -7,7 +7,7 @@ import (
 
 type Car struct {
 	ID        int       `json:"id" db:"id"`
-	Brand     string    `json:"brand" db:"brand"`
+	Brand     string    `json:"brand" binding:"required"`
 	Model     string    `json:"model" db:"model"`
 	Year      int       `json:"year" db:"year"`
 	Price     float64   `json:"price" db:"price"`

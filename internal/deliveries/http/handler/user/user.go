@@ -2,6 +2,7 @@ package userhandler
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -24,6 +25,7 @@ func NewHandler(userUC usercase.UseCase, logger logger.Interface) *Handler {
 
 func (h *Handler) CreateUser(c *gin.Context) {
 	var input entities.User
+	log.Println("CreateUser handler called")
 	if err := c.ShouldBindJSON(&input); err != nil {
 		h.logger.Error("CreateUser: invalid input", "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input"})
@@ -31,6 +33,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 	}
 
 	if err := h.userUC.Create(c.Request.Context(), &input); err != nil {
+
 		h.logger.Error("CreateUser: user creation failed", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return

@@ -5,9 +5,11 @@ database:
   host: "localhost"
   port: "5432"
   user: "postgres"
-  password: "your_password"
+  password: "postgres"
   dbname: "car_dealership"
   sslmode: "disable"
+  database:
+  dsn: "host=localhost port=5432 user=postgres password=postgres dbname=car_dealership sslmode=disable"
 
 jwt:
   secret: "your_jwt_secret" 

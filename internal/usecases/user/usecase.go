@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"myproject/internal/entities"
-
 	repoUser "myproject/internal/repositories/user"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -22,7 +21,7 @@ type UseCase interface {
 	Delete(ctx context.Context, id int) error
 	List(ctx context.Context, limit, offset int) ([]*entities.User, error)
 	ChangePassword(ctx context.Context, userID int, oldPassword, newPassword string) error
-	Authenticate(ctx context.Context, email, password string) (string, *entities.User, error) // Возвращаем JWT
+	Authenticate(ctx context.Context, email, password string) (string, *entities.User, error)
 	Count(ctx context.Context) (int, error)
 }
 
@@ -37,45 +36,48 @@ func New(repo repoUser.Repository, jwtSecret string) UseCase {
 
 func (u *useCase) Create(ctx context.Context, user *entities.User) error {
 	if user.Name == "" || user.Email == "" || user.PasswordHash == "" {
-		return errors.New("invalid user data")
+		return fmt.Errorf("invalid user data: name, email and password required")
 	}
 
 	existingUser, err := u.repo.GetByEmail(ctx, user.Email)
 	if err != nil && !errors.Is(err, entities.ErrNotFound) {
-		return err
+		return fmt.Errorf("failed to check existing user: %w", err)
 	}
 	if existingUser != nil {
-		return errors.New("user with this email already exists")
+		return entities.ErrUserExists
 	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.PasswordHash), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+	user.PasswordHash = string(hashedPassword)
 
 	return u.repo.Create(ctx, user)
 }
 
 func (u *useCase) GetByID(ctx context.Context, id int) (*entities.User, error) {
 	if id <= 0 {
-		return nil, errors.New("invalid ID")
+		return nil, fmt.Errorf("invalid ID")
 	}
 	return u.repo.GetByID(ctx, id)
 }
 
 func (u *useCase) GetByEmail(ctx context.Context, email string) (*entities.User, error) {
 	if email == "" {
-		return nil, errors.New("email is required")
+		return nil, fmt.Errorf("email is required")
 	}
 	return u.repo.GetByEmail(ctx, email)
 }
 
 func (u *useCase) Update(ctx context.Context, user *entities.User) error {
 	if user.ID == 0 {
-		return errors.New("user ID is required")
+		return fmt.Errorf("user ID is required")
 	}
 
-	existingUser, err := u.repo.GetByID(ctx, user.ID)
+	_, err := u.repo.GetByID(ctx, user.ID)
 	if err != nil {
-		return err
-	}
-	if existingUser == nil {
-		return errors.New("user not found")
+		return fmt.Errorf("user not found: %w", err)
 	}
 
 	return u.repo.Update(ctx, user)
@@ -83,38 +85,38 @@ func (u *useCase) Update(ctx context.Context, user *entities.User) error {
 
 func (u *useCase) Delete(ctx context.Context, id int) error {
 	if id <= 0 {
-		return errors.New("invalid ID")
+		return fmt.Errorf("invalid ID")
 	}
 	return u.repo.Delete(ctx, id)
 }
 
 func (u *useCase) List(ctx context.Context, limit, offset int) ([]*entities.User, error) {
 	if limit <= 0 || offset < 0 {
-		return nil, errors.New("invalid pagination parameters")
+		return nil, fmt.Errorf("invalid pagination parameters")
 	}
 	return u.repo.List(ctx, limit, offset)
 }
 
 func (u *useCase) ChangePassword(ctx context.Context, userID int, oldPassword, newPassword string) error {
 	if userID <= 0 {
-		return errors.New("invalid user ID")
+		return fmt.Errorf("invalid user ID")
 	}
 	if newPassword == "" {
-		return errors.New("new password is required")
+		return fmt.Errorf("new password is required")
 	}
 
 	user, err := u.repo.GetByID(ctx, userID)
 	if err != nil {
-		return err
+		return fmt.Errorf("user not found: %w", err)
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(oldPassword)); err != nil {
-		return errors.New("invalid old password")
+		return entities.ErrInvalidCredentials
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to hash password: %w", err)
 	}
 
 	user.PasswordHash = string(hashedPassword)
@@ -123,22 +125,22 @@ func (u *useCase) ChangePassword(ctx context.Context, userID int, oldPassword, n
 
 func (u *useCase) Authenticate(ctx context.Context, email, password string) (string, *entities.User, error) {
 	if email == "" || password == "" {
-		return "", nil, errors.New("email and password are required")
+		return "", nil, fmt.Errorf("email and password are required")
 	}
 
 	user, err := u.repo.GetByEmail(ctx, email)
 	if err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("user not found: %w", err)
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		return "", nil, errors.New("invalid credentials")
+		return "", nil, entities.ErrInvalidCredentials
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id": user.ID,
 		"email":   user.Email,
-		"exp":     time.Now().Add(time.Hour * 24).Unix(),
+		"exp":     time.Now().Add(24 * time.Hour).Unix(),
 	})
 
 	tokenString, err := token.SignedString(u.jwtSecret)

@@ -23,3 +23,7 @@ type User struct {
 }
 
 var ErrNotFoundund = errors.New("user not found")
+var (
+	ErrUserExists         = errors.New("user with this email already exists")
+	ErrInvalidCredentials = errors.New("invalid credentials")
+)
